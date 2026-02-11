@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foro de Debate - El Dilema del Silencio | Anáhuac Online</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>">
+  <style>
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .animate-bounce-custom {
+      animation: bounce 0.6s infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    const CASO_ESTUDIO = `Una empresa detecta una fuga de datos personales que incluye información biométrica de sus usuarios. El equipo técnico logra contener el incidente, pero el impacto potencial es significativo. La alta dirección se enfrenta a una decisión crítica: reportar el incidente ante la autoridad y los titulares de los datos, o guardar silencio para evitar multas y daño reputacional inmediato.
+
+Desde el punto de vista técnico, las bitácoras del sistema contienen la huella del delito, es decir, la trazabilidad completa de accesos, movimientos y extracciones de información. Aunque el incidente no se haga público, esa evidencia existe y puede ser solicitada en una investigación posterior. El riesgo residual de no reportar se incrementa con el tiempo.
+
+Legalmente, la LFPDPPP obliga a implementar medidas de seguridad adecuadas y a responder ante vulneraciones que afecten significativamente los derechos patrimoniales o morales de los titulares. La omisión del reporte no elimina la responsabilidad, solo la agrava. En la práctica, muchas sanciones severas derivan más del encubrimiento que del incidente original.
+
+Este caso refleja la importancia de integrar la seguridad técnica con la ética profesional y el cumplimiento legal. La decisión correcta no siempre es la más cómoda, pero es la única que protege a la organización en el largo plazo.`;
+
+    const PREGUNTAS_GUIA = [
+      "¿Qué riesgos adicionales asume la organización al decidir no reportar una fuga de datos personales, aun cuando el incidente haya sido contenido técnicamente?",
+      "Desde la perspectiva técnica, ¿por qué la existencia de bitácoras y trazabilidad convierte el silencio en una falsa sensación de seguridad?",
+      "¿Cómo se relacionan la ética profesional y el cumplimiento legal en este caso? ¿Es posible justificar el silencio desde alguno de estos enfoques?",
+      "Considerando la LFPDPPP, ¿qué consecuencias puede enfrentar la organización si el encubrimiento es descubierto posteriormente?",
+      "¿Qué mecanismos de gobernanza y toma de decisiones deberían existir para evitar que la presión reputacional lleve a ocultar incidentes de seguridad?"
+    ];
+
+    // Colores institucionales Anáhuac Online
+    const colors = {
+      orange: '#FF5900',
+      richBlack: '#040404',
+      raisinBlack: '#262626',
+      spanishGray: '#9C9C9C',
+      white: '#FFFFFF'
+    };
+
+    function ForoIACiberseguridad() {
+      const [messages, setMessages] = useState([]);
+      const [input, setInput] = useState('');
+      const [isLoading, setIsLoading] = useState(false);
+      const [phase, setPhase] = useState('intro');
+      const [interactionCount, setInteractionCount] = useState(0);
+      const [showQuestions, setShowQuestions] = useState(false);
+      const [error, setError] = useState(null);
+      const messagesEndRef = useRef(null);
+
+      const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      };
+
+      useEffect(() => {
+        scrollToBottom();
+      }, [messages]);
+
+      const handleSubmit = async () => {
+        if (!input.trim() || isLoading) return;
+
+        const userMessage = input.trim();
+        setInput('');
+        setError(null);
+        
+        const newMessages = [...messages, { role: 'user', content: userMessage }];
+        setMessages(newMessages);
+        setIsLoading(true);
+
+        try {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: userMessage,
+              conversationHistory: messages
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Error al procesar el mensaje');
+          }
+
+          const data = await response.json();
+          
+          setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+          setInteractionCount(prev => prev + 1);
+          setPhase('debate');
+        } catch (err) {
+          console.error('Error:', err);
+          setError(err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const requestEvaluation = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+          const response = await fetch('/api/evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ conversationHistory: messages })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Error al generar evaluación');
+          }
+
+          const data = await response.json();
+          
+          setMessages(prev => [...prev, { role: 'evaluation', content: data.evaluation }]);
+          setPhase('evaluation');
+        } catch (err) {
+          console.error('Error:', err);
+          setError(err.message);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      const resetForum = () => {
+        setMessages([]);
+        setPhase('intro');
+        setInteractionCount(0);
+        setInput('');
+        setError(null);
+      };
+
+      const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          handleSubmit();
+        }
+      };
+
+      const formatMessage = (content) => {
+        return content.split('\n').map((line, i) => {
+          if (line.startsWith('**') && line.endsWith('**')) {
+            return <p key={i} className="font-bold mt-3 mb-1" style={{ color: colors.richBlack }}>{line.replace(/\*\*/g, '')}</p>;
+          }
+          if (line.match(/^\*\*.*\*\*:/)) {
+            const parts = line.split('**');
+            return <p key={i} className="mt-2"><strong style={{ color: colors.richBlack }}>{parts[1]}</strong>{parts[2]}</p>;
+          }
+          if (line.startsWith('- ')) {
+            return <li key={i} className="ml-4" style={{ color: colors.raisinBlack }}>{line.substring(2)}</li>;
+          }
+          if (line.match(/^\d+\./)) {
+            return <p key={i} className="mt-2" style={{ color: colors.raisinBlack }}>{line}</p>;
+          }
+          if (line.trim() === '') {
+            return <br key={i} />;
+          }
+          return <p key={i} className="mb-2" style={{ color: colors.raisinBlack }}>{line}</p>;
+        });
+      };
+
+      return (
+        <div className="min-h-screen p-4" style={{ backgroundColor: colors.richBlack }}>
+          <div className="max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="rounded-t-xl p-6 shadow-lg" style={{ backgroundColor: colors.orange }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-white">Foro de Debate Interactivo</h1>
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>El Dilema del Silencio en Incidentes de Datos Personales</p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4 flex-wrap">
+                <span className="px-3 py-1 rounded-full text-xs text-white" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>Datos Biométricos</span>
+                <span className="px-3 py-1 rounded-full text-xs text-white" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>LFPDPPP</span>
+                <span className="px-3 py-1 rounded-full text-xs text-white" style={{ backgroundColor: 'rgba(255,255,255,0.2)' }}>Ética Profesional</span>
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="shadow-xl" style={{ backgroundColor: colors.white }}>
+              {/* Case Study Panel */}
+              {phase === 'intro' && (
+                <div className="p-6 border-b" style={{ backgroundColor: '#FFF5F0', borderColor: '#FFD4C2' }}>
+                  <h2 className="font-bold mb-3 flex items-center gap-2" style={{ color: '#CC4700' }}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Caso: El Dilema del Silencio
+                  </h2>
+                  <div className="text-sm space-y-3 leading-relaxed" style={{ color: colors.raisinBlack }}>
+                    {CASO_ESTUDIO.split('\n\n').map((paragraph, i) => (
+                      <p key={i}>{paragraph}</p>
+                    ))}
+                  </div>
+                  
+                  {/* Collapsible Questions Guide */}
+                  <div className="mt-4">
+                    <button 
+                      onClick={() => setShowQuestions(!showQuestions)}
+                      className="flex items-center gap-2 font-medium text-sm hover:opacity-80 transition-opacity"
+                      style={{ color: colors.orange }}
+                      type="button"
+                    >
+                      <svg className={`w-4 h-4 transition-transform ${showQuestions ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      Preguntas guía para el debate
+                    </button>
+                    {showQuestions && (
+                      <div className="mt-3 p-4 rounded-lg border" style={{ backgroundColor: '#FFF8F5', borderColor: '#FFD4C2' }}>
+                        <ol className="text-sm space-y-2 list-decimal list-inside" style={{ color: colors.raisinBlack }}>
+                          {PREGUNTAS_GUIA.map((pregunta, i) => (
+                            <li key={i} className="leading-relaxed">{pregunta}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Instructions */}
+                  <div className="mt-4 p-4 rounded-lg" style={{ backgroundColor: colors.raisinBlack }}>
+                    <h3 className="font-semibold mb-2 flex items-center gap-2 text-white">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Instrucciones
+                    </h3>
+                    <ol className="text-sm space-y-1 list-decimal list-inside" style={{ color: colors.spanishGray }}>
+                      <li>Analiza el caso desde al menos <strong className="text-white">dos perspectivas</strong>: técnica, ética o legal</li>
+                      <li>Fundamenta con conceptos de seguridad de la información y protección de datos</li>
+                      <li>Recibirás respuestas de "compañeros" virtuales que desafiarán tu análisis</li>
+                      <li>Replica a sus argumentos (mínimo 2 réplicas para evaluación completa)</li>
+                      <li>Mantén un tono respetuoso y profesional</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {error && (
+                <div className="mx-4 mt-4 p-3 rounded-lg text-sm flex items-center gap-2" style={{ backgroundColor: '#FEE2E2', border: '1px solid #FECACA', color: '#DC2626' }}>
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{error}</span>
+                  <button onClick={() => setError(null)} className="ml-auto hover:opacity-70" type="button">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Messages Area */}
+              <div className="h-96 overflow-y-auto p-4 space-y-4" style={{ backgroundColor: '#FAFAFA' }}>
+                {messages.length === 0 && phase === 'intro' && (
+                  <div className="text-center py-12" style={{ color: colors.spanishGray }}>
+                    <svg className="w-16 h-16 mx-auto mb-4" style={{ color: '#E5E5E5' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                    </svg>
+                    <p className="text-lg font-medium" style={{ color: colors.raisinBlack }}>Inicia el debate</p>
+                    <p className="text-sm">Escribe tu análisis del caso para comenzar la discusión</p>
+                  </div>
+                )}
+
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className="max-w-3xl rounded-2xl px-4 py-3"
+                      style={{
+                        backgroundColor: message.role === 'user' 
+                          ? colors.orange 
+                          : message.role === 'evaluation'
+                          ? colors.raisinBlack
+                          : colors.white,
+                        color: message.role === 'user' || message.role === 'evaluation' ? colors.white : colors.raisinBlack,
+                        border: message.role === 'assistant' ? '1px solid #E5E5E5' : 'none',
+                        boxShadow: message.role === 'assistant' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+                      }}
+                    >
+                      {message.role === 'user' && (
+                        <div className="flex items-center gap-2 mb-2 pb-2 text-xs" style={{ borderBottom: '1px solid rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.8)' }}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          Tu intervención
+                        </div>
+                      )}
+                      {message.role === 'evaluation' && (
+                        <div className="flex items-center gap-2 mb-2 pb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.3)' }}>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="font-bold">Evaluación Formativa</span>
+                        </div>
+                      )}
+                      {message.role === 'assistant' && (
+                        <div className="flex items-center gap-2 mb-2 pb-2 text-xs" style={{ borderBottom: '1px solid #E5E5E5', color: colors.spanishGray }}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Réplicas de compañeros
+                        </div>
+                      )}
+                      <div className="text-sm whitespace-pre-wrap">
+                        {message.role === 'user' || message.role === 'evaluation' 
+                          ? <p style={{ color: colors.white }}>{message.content}</p>
+                          : formatMessage(message.content)
+                        }
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl px-4 py-3 shadow-sm" style={{ backgroundColor: colors.white, border: '1px solid #E5E5E5' }}>
+                      <div className="flex items-center gap-2" style={{ color: colors.spanishGray }}>
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 rounded-full animate-bounce-custom" style={{ backgroundColor: colors.orange }}></div>
+                          <div className="w-2 h-2 rounded-full animate-bounce-custom" style={{ backgroundColor: colors.orange, animationDelay: '0.15s' }}></div>
+                          <div className="w-2 h-2 rounded-full animate-bounce-custom" style={{ backgroundColor: colors.orange, animationDelay: '0.3s' }}></div>
+                        </div>
+                        <span className="text-sm">Generando respuestas...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <div className="p-4 border-t rounded-b-xl" style={{ borderColor: '#E5E5E5', backgroundColor: colors.white }}>
+                {phase !== 'evaluation' ? (
+                  <div className="space-y-3">
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      placeholder={phase === 'intro' 
+                        ? "Escribe tu análisis inicial del caso. Considera al menos dos perspectivas: técnica, ética o legal..." 
+                        : "Escribe tu réplica a los argumentos de tus compañeros..."}
+                      className="w-full p-3 rounded-xl resize-none text-sm transition-all focus:outline-none"
+                      style={{ 
+                        border: '1px solid #E5E5E5',
+                        color: colors.raisinBlack
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = colors.orange}
+                      onBlur={(e) => e.target.style.borderColor = '#E5E5E5'}
+                      rows={4}
+                      disabled={isLoading}
+                    />
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <div className="text-sm flex items-center gap-4" style={{ color: colors.spanishGray }}>
+                        {interactionCount > 0 && (
+                          <>
+                            <span className="flex items-center gap-1">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                              </svg>
+                              Intervenciones: {interactionCount}
+                            </span>
+                            {interactionCount < 2 && (
+                              <span style={{ color: colors.orange }}>
+                                (Mínimo 2 para evaluación)
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        {interactionCount >= 2 && (
+                          <button
+                            type="button"
+                            onClick={requestEvaluation}
+                            disabled={isLoading}
+                            className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all hover:opacity-90"
+                            style={{ backgroundColor: colors.raisinBlack, color: colors.white }}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Solicitar Evaluación
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleSubmit}
+                          disabled={isLoading || !input.trim()}
+                          className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all hover:opacity-90"
+                          style={{ backgroundColor: colors.orange, color: colors.white }}
+                        >
+                          {isLoading ? (
+                            <>
+                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Enviando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>{phase === 'intro' ? 'Publicar Análisis' : 'Enviar Réplica'}</span>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                              </svg>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="mb-3" style={{ color: colors.raisinBlack }}>Has completado el ejercicio de debate.</p>
+                    <button
+                      type="button"
+                      onClick={resetForum}
+                      className="px-6 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90"
+                      style={{ backgroundColor: colors.raisinBlack, color: colors.white }}
+                    >
+                      Reiniciar Foro
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Rubric Summary */}
+            <details className="mt-4 rounded-xl overflow-hidden" style={{ backgroundColor: colors.raisinBlack }}>
+              <summary className="p-4 cursor-pointer flex items-center gap-2 hover:opacity-80 transition-opacity" style={{ color: colors.spanishGray }}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Ver criterios de evaluación
+              </summary>
+              <div className="p-4 pt-0 text-sm space-y-2" style={{ color: colors.spanishGray }}>
+                <p><strong style={{ color: colors.white }}>1. Comprensión del caso:</strong> Entendimiento del incidente, implicaciones y dilema</p>
+                <p><strong style={{ color: colors.white }}>2. Análisis técnico:</strong> Trazabilidad, bitácoras, riesgos residuales</p>
+                <p><strong style={{ color: colors.white }}>3. Enfoque ético y legal:</strong> LFPDPPP, responsabilidad profesional</p>
+                <p><strong style={{ color: colors.white }}>4. Calidad argumentativa:</strong> Solidez y estructura de argumentos</p>
+                <p><strong style={{ color: colors.white }}>5. Interacción:</strong> Réplicas constructivas al debate</p>
+              </div>
+            </details>
+
+            {/* Footer */}
+            <div className="mt-4 text-center text-xs" style={{ color: colors.spanishGray }}>
+              <p>Foro de debate potenciado por IA • Diplomado en Ciberseguridad • Anáhuac Online</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<ForoIACiberseguridad />);
+  </script>
+</body>
+</html>
